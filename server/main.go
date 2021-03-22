@@ -1,31 +1,29 @@
 package main
 
 import (
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"time"
-
-	_ "github.com/lib/pq"
+	"gorm.io/driver/postgres"
+	"gorm.io/gorm"
 )
 
 type Todo struct {
-	ID      int
-	Text    string
-	Created time.Time
+	gorm.Model
+	Text string
 }
 
-var db *sql.DB
+var db *gorm.DB
 
 func init() {
 	var err error
-	db, err = sql.Open("postgres", "host=db user=root password=root dbname=next_go sslmode=disable")
+	dsn := "host=db user=root password=root dbname=next_go port=5432 sslmode=disable TimeZone=Asia/Shanghai"
+	db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{})
 	checkErr(err)
+	db.AutoMigrate(&Todo{})
 }
 
 func main() {
-	defer db.Close()
 	http.HandleFunc("/", handler)
 	http.ListenAndServe(":8080", nil)
 }
@@ -54,52 +52,45 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	case "/read":
 		fmt.Println("Read")
 	case "/update":
-		update(f.ID, f.Text)
+		update(int(f.ID), f.Text)
 	case "/delete":
-		delete(f.ID)
+		delete(int(f.ID))
 	default:
 		fmt.Println("Noting")
 	}
-	todo := read()
-	js, err := json.Marshal(todo)
+	todos := read()
+	js, err := json.Marshal(todos)
 	checkErr(err)
 	w.Write(js)
 }
 
 func create(text string) {
-	stmt, err := db.Prepare("INSERT INTO todos (text,created) VALUES ($1,$2) RETURNING id")
-	checkErr(err)
-	_, err = stmt.Exec(text, time.Now())
-	checkErr(err)
+	todo := Todo{Text: text}
+	db.Select("Text").Create(&todo)
 }
 
 func read() []Todo {
-	rows, err := db.Query("SELECT * FROM todos")
-	checkErr(err)
-	var todo []Todo
-	for rows.Next() {
-		var id int
-		var text string
-		var created time.Time
-		err = rows.Scan(&id, &text, &created)
-		checkErr(err)
-		todo = append(todo, Todo{id, text, created})
-	}
-	return todo
+	var todos []Todo
+	db.Find(&todos)
+	// checkErr(err)
+	// var todo []Todo
+	// for rows.Next() {
+	// 	var id int
+	// 	var text string
+	// 	var created time.Time
+	// 	err = rows.Scan(&id, &text, &created)
+	// 	checkErr(err)
+	// 	todo = append(todo, Todo{id, text, created})
+	// }
+	return todos
 }
 
 func update(id int, text string) {
-	stmt, err := db.Prepare("UPDATE todos SET text=$1 WHERE id=$2")
-	checkErr(err)
-	_, err = stmt.Exec(text, id)
-	checkErr(err)
+	db.Model(&Todo{}).Where("ID = ?", id).Update("Text", text)
 }
 
 func delete(id int) {
-	stmt, err := db.Prepare("DELETE FROM todos WHERE id=$1")
-	checkErr(err)
-	_, err = stmt.Exec(id)
-	checkErr(err)
+	db.Delete(&Todo{}, id)
 }
 
 func checkErr(e error) {
