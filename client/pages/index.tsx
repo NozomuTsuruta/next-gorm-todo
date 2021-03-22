@@ -1,5 +1,5 @@
-import { FormEvent, useEffect, useState } from "react";
-import { useRef } from "react";
+import { GetServerSideProps } from "next";
+import { FormEvent, useState, useRef } from "react";
 
 type ITodo = {
   ID: string;
@@ -7,27 +7,26 @@ type ITodo = {
   Created: string;
 };
 
-export default function Index() {
-  const [todos, setTodos] = useState<ITodo[]>([]);
+export default function Index({ data }: { data: ITodo[] }) {
+  const [todos, setTodos] = useState<ITodo[]>(data);
   const [editId, setEditId] = useState<string>();
   const ref = useRef<HTMLInputElement>(null);
   const editRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch("http://localhost:8080/read", {
-          method: "GET",
-          mode: "cors",
-        });
-        const data = await res.json();
-        setTodos(data);
-        console.log(data);
-      } catch (error) {
-        console.error(error);
-      }
-    })();
-  }, []);
+  const customFetch = async (path: string, body: Partial<ITodo>) => {
+    try {
+      const res = await fetch(`http://localhost:8080/${path}`, {
+        method: "POST",
+        mode: "cors",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      setTodos(data);
+    } catch (error) {
+      console.error(error);
+    }
+  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -36,53 +35,19 @@ export default function Index() {
         alert("1文字以上入力してください(スペースを除く)");
         return;
       }
-      try {
-        const res = await fetch("http://localhost:8080/create", {
-          method: "POST",
-          mode: "cors",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: ref.current.value }),
-        });
-        const data = await res.json();
-        setTodos(data);
-        ref.current.value = "";
-      } catch (error) {
-        console.error(error);
-      }
+      await customFetch("create", { Text: ref.current.value });
+      ref.current.value = "";
     }
   };
 
-  const handleUpdate = async (id: string, text: string) => {
-    try {
-      const res = await fetch("http://localhost:8080/update", {
-        method: "POST",
-        mode: "cors",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, text }),
-      });
-      const data = await res.json();
-      setTodos(data);
-      setEditId(undefined);
-    } catch (error) {
-      console.error(error);
-    }
+  const handleUpdate = async (ID: string, Text: string) => {
+    await customFetch("update", { ID, Text });
+    setEditId(undefined);
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("本当に削除しますか？")) {
-      return;
-    }
-    try {
-      const res = await fetch("http://localhost:8080/delete", {
-        method: "POST",
-        mode: "cors",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id }),
-      });
-      const data = await res.json();
-      setTodos(data);
-    } catch (error) {
-      console.error(error);
+  const handleDelete = async (ID: string) => {
+    if (confirm("本当に削除しますか？")) {
+      customFetch("delete", { ID });
     }
   };
 
@@ -150,3 +115,14 @@ export default function Index() {
     </div>
   );
 }
+
+export const getServerSideProps: GetServerSideProps = async () => {
+  const res = await fetch("http://localhost:8080/read", {
+    method: "GET",
+    mode: "cors",
+  });
+  const data = await res.json();
+  return {
+    props: { data },
+  };
+};
