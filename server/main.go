@@ -72,16 +72,6 @@ func create(text string) {
 func read() []Todo {
 	var todos []Todo
 	db.Find(&todos)
-	// checkErr(err)
-	// var todo []Todo
-	// for rows.Next() {
-	// 	var id int
-	// 	var text string
-	// 	var created time.Time
-	// 	err = rows.Scan(&id, &text, &created)
-	// 	checkErr(err)
-	// 	todo = append(todo, Todo{id, text, created})
-	// }
 	return todos
 }
 
